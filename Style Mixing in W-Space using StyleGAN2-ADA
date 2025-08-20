@@ -1,0 +1,44 @@
+import torch
+import numpy as np
+import dnnlib
+import legacy
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load the trained model
+ckpt_path = '/content/network-snapshot-0004009.pkl'
+device = torch.device('cuda')
+with dnnlib.util.open_url(ckpt_path) as f:
+    G = legacy.load_network_pkl(f)['G_ema'].to(device)
+
+# Generate latent vectors for two different images
+z1 = torch.randn([1, G.z_dim]).to(device)
+z2 = torch.randn([1, G.z_dim]).to(device)
+
+# Map z to w (style space)
+w1 = G.mapping(z1, None)
+w2 = G.mapping(z2, None)
+
+# Take w1 as a base and replace some layers with w2
+w_mixed = w1.clone()
+# Choose the style layers to mix (e.g., [6, 7, 8] represent mid-level details)
+style_layers = [6, 7, 8]
+
+for layer in style_layers:
+    w_mixed[:, layer] = w2[:, layer]
+
+# Generate images
+image1 = G.synthesis(w1, noise_mode='const')
+image2 = G.synthesis(w2, noise_mode='const')
+image_mixed = G.synthesis(w_mixed, noise_mode='const')
+
+# Convert tensors to NumPy images
+def tensor_to_image(img_tensor):
+    img = (img_tensor + 1) * 127.5
+    img = img.clamp(0, 255).to(torch.uint8)
+    img = img[0].permute(1, 2, 0).cpu().numpy()
+    return img
+
+img1 = tensor_to_image(image1)
+img2 = tensor_to_image(image2)
+img_mixed = tensor_to_image(image_mixed)
