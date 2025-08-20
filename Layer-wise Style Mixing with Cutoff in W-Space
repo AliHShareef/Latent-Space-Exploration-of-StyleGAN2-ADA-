@@ -1,0 +1,45 @@
+import torch
+import dnnlib
+import legacy
+import numpy as np
+import matplotlib.pyplot as plt
+import PIL.Image
+
+# Load the trained model (change the path if needed)
+network_pkl = '/content/network-snapshot-0004009.pkl'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+with dnnlib.util.open_url(network_pkl) as f:
+    G = legacy.load_network_pkl(f)['G_ema'].to(device)
+
+# Generate z1 and z2
+z1 = torch.from_numpy(np.random.randn(1, G.z_dim)).to(device)
+z2 = torch.from_numpy(np.random.randn(1, G.z_dim)).to(device)
+w1 = G.mapping(z1, None)
+w2 = G.mapping(z2, None)
+
+num_ws = G.synthesis.num_ws
+
+# Function to convert tensor to PIL image
+def to_pil(img_tensor):
+    img = (img_tensor.clamp(-1, 1) + 1) * (255 / 2)
+    img = img.permute(0, 2, 3, 1).to(torch.uint8)[0].cpu().numpy()
+    return PIL.Image.fromarray(img)
+
+# Prepare images: z1, z2, and mixed images with different cutoff values
+imgs = []
+
+# Image from z1
+img_z1 = G.synthesis(w1, noise_mode='const')
+imgs.append(("source: z1", to_pil(img_z1)))
+
+# Image from z2
+img_z2 = G.synthesis(w2, noise_mode='const')
+imgs.append(("source: z2", to_pil(img_z2)))
+
+# Mixed images
+cutoff_range = list(range(0, num_ws + 1, 2))
+for cutoff in cutoff_range:
+    w_mix = w1.clone()
+    w_mix[:, cutoff:] = w2[:, cutoff:]
+    img = G.synthesis(w_mix, noise_mode='const')
+    imgs.append((f"mixed (cutoff={cutoff})", to_pil(img)))
