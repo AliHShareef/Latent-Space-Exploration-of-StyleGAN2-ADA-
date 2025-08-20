@@ -1,0 +1,8 @@
+# Display images in a single row without overlap
+plt.figure(figsize=(60, 5))
+for i, img in enumerate(images):
+    plt.subplot(1, len(images), i + 1)
+    plt.imshow(img)
+    plt.axis("off")
+plt.tight_layout(pad=2.0)
+plt.show()
