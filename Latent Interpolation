@@ -1,0 +1,27 @@
+import torch
+import numpy as np
+import legacy
+import dnnlib
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Make sure to change the checkpoint filename if needed
+ckpt_path = '/content/network-snapshot-0004009.pkl'
+
+# Load the trained model
+device = torch.device('cuda')
+with dnnlib.util.open_url(ckpt_path) as f:
+    G = legacy.load_network_pkl(f)['G_ema'].to(device)
+
+# Generate two random latent vectors z1 and z2
+z1 = torch.randn([1, G.z_dim]).to(device)
+z2 = torch.randn([1, G.z_dim]).to(device)
+
+# Generate interpolated points between z1 and z2
+n_steps = 10
+alphas = np.linspace(0, 1, n_steps)
+latents = [(1 - alpha) * z1 + alpha * z2 for alpha in alphas]
+
+# Generate images
+images = [G(z, None, truncation_psi=0.7, noise_mode='const') for z in latents]
+images = [((img + 1) * 127.5).clamp(0, 255).to(torch.uint8)[0].permute(1, 2, 0).cpu().numpy() for img in images]
